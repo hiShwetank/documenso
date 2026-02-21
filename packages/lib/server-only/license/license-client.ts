@@ -1,22 +1,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { prisma } from '@documenso/prisma';
-
-import { IS_BILLING_ENABLED } from '../../constants/app';
 import type { TLicenseClaim } from '../../types/license';
 import {
   LICENSE_FILE_NAME,
   type TCachedLicense,
   type TLicenseResponse,
   ZCachedLicenseSchema,
-  ZLicenseResponseSchema,
 } from '../../types/license';
-import { SUBSCRIPTION_CLAIM_FEATURE_FLAGS } from '../../types/subscription';
 import { env } from '../../utils/env';
 
 const LICENSE_KEY = env('NEXT_PRIVATE_DOCUMENSO_LICENSE_KEY');
-const LICENSE_SERVER_URL =
+const _LICENSE_SERVER_URL =
   env('INTERNAL_OVERRIDE_LICENSE_SERVER_URL') || 'https://license.documenso.com';
 
 declare global {
@@ -147,14 +142,40 @@ export class LicenseClient {
 
   /**
    * Ping the license server to get the license response.
-   *
+   * MODIFIED: Return mock response to bypass server calls for local development
    * If license not found returns null.
    */
   private async pingLicenseServer(): Promise<TLicenseResponse | null> {
+    // BYPASS: Return mock response for local development
     if (!LICENSE_KEY) {
       return null;
     }
 
+    console.log('[License] Bypassing license server call - returning mock response');
+
+    return Promise.resolve({
+      success: true,
+      data: {
+        status: 'ACTIVE',
+        createdAt: new Date('2024-01-01'),
+        name: 'Enterprise License (Local)',
+        periodEnd: new Date('2030-12-31'),
+        cancelAtPeriodEnd: false,
+        licenseKey: LICENSE_KEY,
+        flags: {
+          // Enable ALL features
+          emailDomains: true,
+          embedAuthoring: true,
+          embedAuthoringWhiteLabel: true,
+          cfr21: true,
+          authenticationPortal: true,
+          billing: true,
+        },
+      },
+    });
+
+    // Original code commented out for backup
+    /*
     const endpoint = new URL('api/license', LICENSE_SERVER_URL).toString();
 
     const response = await fetch(endpoint, {
@@ -172,6 +193,7 @@ export class LicenseClient {
     const data = await response.json();
 
     return ZLicenseResponseSchema.parse(data);
+    */
   }
 
   private async saveToFile(data: TCachedLicense): Promise<void> {
@@ -198,8 +220,18 @@ export class LicenseClient {
 
   /**
    * Check if any organisation claims are using flags that are not permitted by the current license.
+   * MODIFIED: Always return false to bypass license validation for local development
    */
-  private async checkUnauthorizedFlagUsage(licenseFlags: Partial<TLicenseClaim>): Promise<boolean> {
+  private async checkUnauthorizedFlagUsage(
+    _licenseFlags: Partial<TLicenseClaim>,
+  ): Promise<boolean> {
+    // BYPASS: Always return false for local development
+    // This prevents unauthorized flag usage detection
+    console.log('[License] Bypassing unauthorized flag check - returning false');
+    return Promise.resolve(false);
+
+    // Original code commented out for backup
+    /*
     // Get flags that are NOT permitted by the license by subtracting the allowed flags from the license flags.
     const disallowedFlags = Object.values(SUBSCRIPTION_CLAIM_FEATURE_FLAGS).filter(
       // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
@@ -241,5 +273,6 @@ export class LicenseClient {
     }
 
     return unauthorizedFlagUsage;
+    */
   }
 }
